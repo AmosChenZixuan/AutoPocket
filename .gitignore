@@ -1,0 +1,13 @@
+# Personal data never leaves the machine
+config/settings.json
+config/*.local.json
+data/
+*.sqlite
+*.db
+.env
+.env.*
+!.env.example
+
+# Tooling
+node_modules/
+.DS_Store

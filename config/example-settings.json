@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "income": {
+    "base": 96000,
+    "variable": 12000,
+    "includeVariable": true,
+    "firstVariable": "2027-03",
+    "firstPaycheck": "2026-11-06",
+    "matchOn": true,
+    "matchFrom": "2027-07",
+    "match": [{ "upTo": 6, "rate": 0.5 }]
+  },
+  "ded": { "premium": 85, "hsaEligible": true, "hdhpStart": "2026-11" },
+  "k401": { "2026": { "pct": 10, "type": "roth" }, "2027": { "pct": 15, "type": "trad" } },
+  "limits": { "k401": 24500, "hsa": 4400, "roth": 7500 },
+  "exp": {
+    "now":      { "rent": 1500, "util": 100, "carIns": 150, "gas": 120, "carMaint": 40, "subs": 60, "food": 450, "personal": 150, "irregular": 0 },
+    "improved": { "rent": 1500, "util": 100, "carIns": 150, "gas": 120, "carMaint": 40, "subs": 60, "food": 600, "personal": 200, "irregular": 100 },
+    "moved":    { "rent": 2000, "util": 150, "carIns": 150, "gas": 120, "carMaint": 40, "subs": 60, "food": 700, "personal": 250, "irregular": 200 },
+    "improveFrom": "2027-01", "reg": 350, "regMonth": 6, "regPaidThrough": "2026-12"
+  },
+  "move": { "mode": "auto", "month": "2027-09" },
+  "debt": { "rate": 6.5, "min": 250, "keepCash": 3000, "payoffStart": "2026-11" },
+  "plan": { "buffer": 1000, "b1Months": 3, "b2Months": 6, "floorMonths": 1, "basis": "moved", "hysa": 4, "ret": 6, "foreignCounts": false, "rothPrior": true, "end": "2029-12" },
+  "initial": { "date": "2026-10-31", "checking": 1800, "brokerageCash": 7000, "hysa": 0, "roth": 0, "brokerage": 0, "k401": 0, "hsa": 0, "loan": 9000, "foreign": 0 }
+}

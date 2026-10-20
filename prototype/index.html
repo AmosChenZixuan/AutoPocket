@@ -1,0 +1,912 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>资金瀑布计划</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@700&display=swap">
+<style>
+/* Layout: a ledger-like control room — summary band, month scrubber driving tanks + flows, charts, then check-in and settings drawers. */
+:root{
+  --bg:#eef1f4; --surface:#ffffff; --surface-2:#f6f8fa; --ink:#121a23; --ink-2:#47525e; --muted:#7a8591; --line:#dce1e7; --line-2:#c6ced7;
+  --accent:#0e7c66; --accent-soft:#e1f2ed; --accent-ink:#0a5f4e;
+  --s-k401:#2a78d6; --s-hsa:#eb6834; --s-cash:#1baf7a; --s-chk:#eda100; --s-roth:#e87ba4; --s-brk:#008300; --s-debt:#d03b3b; --s-exp:#9aa4ae;
+  --good:#0ca30c; --warn:#b97d00; --crit:#d03b3b;
+  --f-body:"Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  --f-display:"Noto Serif SC","Songti SC","STSong",serif;
+  --f-num:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d1217; --surface:#151c23; --surface-2:#1a222a; --ink:#e7ecf1; --ink-2:#aeb8c2; --muted:#7f8a95; --line:#26303a; --line-2:#34404c;
+  --accent:#3fbf9c; --accent-soft:#163029; --accent-ink:#7fd9bf;
+  --s-k401:#3987e5; --s-hsa:#d95926; --s-cash:#199e70; --s-chk:#c98500; --s-roth:#d55181; --s-brk:#008300; --s-debt:#e66767; --s-exp:#5d6873;
+  --good:#0ca30c; --warn:#fab219; --crit:#e66767; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d1217; --surface:#151c23; --surface-2:#1a222a; --ink:#e7ecf1; --ink-2:#aeb8c2; --muted:#7f8a95; --line:#26303a; --line-2:#34404c;
+  --accent:#3fbf9c; --accent-soft:#163029; --accent-ink:#7fd9bf;
+  --s-k401:#3987e5; --s-hsa:#d95926; --s-cash:#199e70; --s-chk:#c98500; --s-roth:#d55181; --s-brk:#008300; --s-debt:#e66767; --s-exp:#5d6873;
+  --good:#0ca30c; --warn:#fab219; --crit:#e66767; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1140px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:20px}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+h1{font-family:var(--f-display);font-size:30px;line-height:1.2;margin:0;text-wrap:balance}
+h2{font-size:15px;margin:0;font-weight:700;letter-spacing:.02em}
+.eyebrow{font-size:12px;color:var(--muted);letter-spacing:.08em}
+.sub{color:var(--ink-2);margin:6px 0 0;max-width:65ch}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px}
+.sync{font-size:12px;color:var(--ink-2);display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--line);border-radius:99px;background:var(--surface)}
+.sync i{width:7px;height:7px;border-radius:50%;background:var(--muted);display:inline-block}
+.sync.ok i{background:var(--good)} .sync.warn i{background:var(--warn)}
+.banner{border:1px solid var(--line-2);background:var(--surface-2);border-radius:var(--r);padding:10px 14px;color:var(--ink-2)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;min-width:0}
+.card-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.hint{font-size:12px;color:var(--muted)}
+/* milestones */
+.ms{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.ms>div{padding:14px 16px;border-left:1px solid var(--line);min-width:0}
+.ms>div:first-child{border-left:0}
+.ms .k{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.ms .k b{width:8px;height:8px;border-radius:2px;display:inline-block}
+.ms .v{font-size:20px;font-weight:700;margin-top:4px}
+.ms .d{font-size:12px;color:var(--ink-2)}
+.ms .done .v{color:var(--good)}
+@media (max-width:760px){.ms{grid-template-columns:repeat(2,minmax(0,1fr))}.ms>div:nth-child(3){border-left:0}.ms>div:nth-child(n+3){border-top:1px solid var(--line)}}
+/* scrubber */
+.scrub{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center}
+.scrub .mlabel{font-family:var(--f-display);font-size:22px;min-width:7.5em}
+.btn{font:inherit;font-size:13px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);border-radius:8px;padding:6px 12px;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+:root[data-theme="dark"] .btn.primary{color:#0d1217}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .btn.primary{color:#0d1217}}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--ink-2)}
+.btn.danger{color:var(--crit)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.stagepill{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 10px;border-radius:99px;background:var(--accent-soft);color:var(--accent-ink);font-weight:500}
+/* now grid */
+.now{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px}
+@media (max-width:860px){.now{grid-template-columns:1fr}}
+.tanks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:end}
+@media (max-width:520px){.tanks{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tank{display:grid;gap:6px;justify-items:center;text-align:center;min-width:0}
+.tank svg{width:100%;max-width:110px;height:auto;display:block}
+.tank .t{font-size:13px;font-weight:700}
+.tank .a{font-size:13px}
+.tank .g{font-size:11px;color:var(--muted)}
+.flowlist{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.flowlist li{display:grid;grid-template-columns:10px 1fr auto;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px dashed var(--line)}
+.flowlist li:last-child{border-bottom:0}
+.flowlist .sw{width:10px;height:10px;border-radius:2px;transform:translateY(1px)}
+.flowlist .amt{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.flowlist .why{display:block;font-size:12px;color:var(--muted)}
+.inout{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;color:var(--ink-2);margin-bottom:10px}
+.inout b{font-family:var(--f-num);font-weight:600;color:var(--ink)}
+/* what-if */
+.whatif{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}
+@media (max-width:860px){.whatif{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:480px){.whatif{grid-template-columns:1fr}}
+.wi label{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-2);gap:8px}
+.wi label b{font-family:var(--f-num);color:var(--ink)}
+.seg{display:inline-flex;border:1px solid var(--line-2);border-radius:8px;overflow:hidden}
+.seg button{font:inherit;font-size:12px;border:0;background:transparent;color:var(--ink-2);padding:5px 10px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--accent);color:#fff}
+/* charts */
+.chartbox{position:relative;height:300px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--ink-2);margin-top:10px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.legend i.line{height:2px;border-radius:0}
+.legend i.dash{height:0;border-top:2px dashed var(--ink-2);background:none!important}
+.legend i.dot{border-radius:50%;width:9px;height:9px}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+@media (max-width:860px){.two{grid-template-columns:1fr}}
+/* paycheck */
+.pbar{display:flex;height:34px;border-radius:6px;overflow:hidden;gap:2px;background:var(--surface)}
+.pbar div{min-width:2px}
+.ptable{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+.ptable td{padding:5px 0;border-bottom:1px solid var(--line)}
+.ptable td:last-child{text-align:right;font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.ptable i{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:8px}
+.ptable tr.total td{font-weight:700;border-bottom:0}
+.kv{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}
+.kv div{background:var(--surface-2);border-radius:8px;padding:10px}
+.kv .l{font-size:11px;color:var(--muted)}
+.kv .n{font-family:var(--f-num);font-weight:600;font-size:15px}
+/* tables */
+.tscroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table.grid{border-collapse:collapse;width:100%;font-size:12.5px;white-space:nowrap}
+table.grid th,table.grid td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:right}
+table.grid th{position:sticky;top:0;background:var(--surface-2);color:var(--ink-2);font-weight:500;font-size:12px}
+table.grid td:first-child,table.grid th:first-child{text-align:left}
+table.grid td{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+table.grid tr.sel td{background:var(--accent-soft)}
+table.grid tr{cursor:pointer}
+.neg{color:var(--crit)} .pos{color:var(--good)}
+details>summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px}
+details>summary::-webkit-details-marker{display:none}
+details>summary::after{content:"展开";font-size:12px;color:var(--muted)}
+details[open]>summary::after{content:"收起"}
+/* forms */
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px 16px}
+.f{display:grid;gap:4px;min-width:0}
+.f label{font-size:12px;color:var(--ink-2)}
+.f input,.f select{font:inherit;font-family:var(--f-num);font-size:13px;padding:7px 9px;border:1px solid var(--line-2);border-radius:7px;background:var(--surface);color:var(--ink);width:100%;min-width:0}
+.f select{font-family:var(--f-body)}
+.f .h{font-size:11px;color:var(--muted)}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2)}
+.sect{display:grid;gap:12px;padding:14px 0;border-top:1px solid var(--line)}
+.sect:first-of-type{border-top:0}
+.sect h3{font-size:13px;margin:0;color:var(--ink)}
+table.budget{border-collapse:collapse;width:100%;font-size:13px}
+table.budget th,table.budget td{padding:5px 6px;text-align:left;border-bottom:1px solid var(--line)}
+table.budget th{font-weight:500;color:var(--ink-2);font-size:12px}
+table.budget input{font:inherit;font-family:var(--f-num);width:100%;min-width:64px;padding:5px 7px;border:1px solid var(--line-2);border-radius:6px;background:var(--surface);color:var(--ink)}
+table.budget tr.sum td{font-weight:700;font-family:var(--f-num)}
+.ci-list{display:grid;gap:0}
+.ci-row{display:grid;grid-template-columns:110px 1fr 1fr 1fr auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.ci-row .num{text-align:right}
+@media (max-width:560px){.ci-row{grid-template-columns:1fr 1fr;}.ci-row .hd-hide{display:none}}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+footer{font-size:12px;color:var(--muted);display:grid;gap:4px}
+footer p{margin:0;max-width:90ch}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">AUTOPOCKET · 原型</div>
+      <h1>资金瀑布计划</h1>
+      <p class="sub">每个月的结余按顺序往下流：先还清车贷，再注满第一个桶（3 个月开销），再注满第二个桶（6 个月开销），之后全部进入长期投资。</p>
+    </div>
+    <span class="sync" id="sync"><i></i><span>连接中…</span></span>
+  </header>
+  <div class="banner" id="banner" hidden></div>
+
+  <section class="ms" id="milestones" aria-label="关键时间点"></section>
+
+  <section class="card">
+    <div class="scrub">
+      <button class="btn" id="prevM" aria-label="上个月">‹</button>
+      <div>
+        <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+          <span class="mlabel" id="mlabel"></span>
+          <span class="stagepill" id="stagepill"></span>
+          <button class="btn ghost" id="todayM">回到本月</button>
+        </div>
+        <input type="range" id="mslider" min="0" max="10" value="0" aria-label="选择月份">
+      </div>
+      <button class="btn" id="nextM" aria-label="下个月">›</button>
+    </div>
+  </section>
+
+  <section class="now">
+    <div class="card">
+      <div class="card-h"><h2>这个月该做什么</h2><span class="hint" id="nowhint"></span></div>
+      <div class="inout" id="inout"></div>
+      <ul class="flowlist" id="flowlist"></ul>
+    </div>
+    <div class="card">
+      <div class="card-h"><h2>月底时四个桶的水位</h2><span class="hint">计划值</span></div>
+      <div class="tanks" id="tanks"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-h"><h2>试算</h2><span class="hint">改动会保存到计划里，所有图表即时重算</span></div>
+    <div class="whatif">
+      <div class="wi"><label for="w-rent">搬家后月租 <b id="w-rent-v"></b></label><input type="range" id="w-rent" min="1300" max="3500" step="50"></div>
+      <div class="wi"><label for="w-k401">2027 起 401(k) 比例 <b id="w-k401-v"></b></label><input type="range" id="w-k401" min="0" max="30" step="1"></div>
+      <div class="wi"><label for="w-food">搬家后吃喝 <b id="w-food-v"></b></label><input type="range" id="w-food" min="400" max="1600" step="50"></div>
+      <div class="wi"><label>搬家时间</label>
+        <div class="seg" role="group" aria-label="搬家时间" id="w-move">
+          <button data-v="auto">两桶满后</button><button data-v="month">指定月份</button><button data-v="never">不搬</button>
+        </div>
+        <label class="chk" style="margin-top:8px"><input type="checkbox" id="w-var"> 计入季度 variable</label>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-h">
+      <h2>账户余额走势</h2>
+      <div class="actions">
+        <label class="chk"><input type="checkbox" id="showRet"> 包括 401(k) 和 HSA</label>
+        <div class="seg" role="group" aria-label="时间范围" id="range"><button data-v="24">两年</button><button data-v="all">全部</button></div>
+      </div>
+    </div>
+    <div class="chartbox"><canvas id="balChart" aria-label="账户余额走势图" role="img"></canvas></div>
+    <div class="legend" id="balLegend"></div>
+    <p class="hint" style="margin:8px 0 0">点图上的任意一个月，上面的待办和水位会切到那个月。</p>
+  </section>
+
+  <section class="two">
+    <div class="card">
+      <div class="card-h"><h2>每月的钱流去哪</h2><span class="hint">到手工资 + variable + 退税</span></div>
+      <div class="chartbox" style="height:260px"><canvas id="flowChart" aria-label="每月资金去向" role="img"></canvas></div>
+      <div class="legend" id="flowLegend"></div>
+      <p class="hint" style="margin:8px 0 0">401(k) 和 HSA 在发工资前已扣，不在这张图里。</p>
+    </div>
+    <div class="card">
+      <div class="card-h"><h2>一张工资单拆开看</h2>
+        <div class="seg" role="group" aria-label="年份" id="pyear"></div>
+      </div>
+      <div class="pbar" id="pbar" role="img" aria-label="工资单构成"></div>
+      <table class="ptable" id="ptable"></table>
+      <div class="kv" id="pkv"></div>
+    </div>
+  </section>
+
+  <section class="card" id="checkin">
+    <div class="card-h"><h2>月底打卡：记录实际余额</h2><span class="hint">每月底记一次。计划会从你最近一次记录重新推算。</span></div>
+    <form id="ciForm" class="fgrid" autocomplete="off"></form>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn primary" id="ciSave" type="button">保存这次记录</button>
+      <button class="btn ghost" id="ciFill" type="button">按计划值预填</button>
+      <span class="hint" id="ciMsg"></span>
+    </div>
+    <div style="margin-top:18px">
+      <div class="ci-row" style="color:var(--muted);font-size:12px"><span>日期</span><span class="num">实际可动用</span><span class="num hd-hide">原计划</span><span class="num hd-hide">差额</span><span></span></div>
+      <div class="ci-list" id="ciList"></div>
+    </div>
+  </section>
+
+  <details class="card" id="tableCard">
+    <summary><h2>逐月明细</h2></summary>
+    <div class="tscroll" style="margin-top:12px;max-height:440px"><table class="grid" id="mtable"></table></div>
+  </details>
+
+  <details class="card" id="settingsCard">
+    <summary><h2>计划设置</h2></summary>
+    <div class="actions" style="margin-top:12px"><label class="btn" for="importSettings">导入设置 JSON</label><input type="file" id="importSettings" accept="application/json,.json" hidden><button class="btn ghost" id="copySettings" type="button">复制当前设置 JSON</button><span class="hint">例如 config/settings.json；复制后可保存为文件</span></div>
+    <div id="settings" style="margin-top:8px"></div>
+  </details>
+
+  <footer>
+    <p>税额用 2026 年联邦和加州税率表估算（单身申报、标准扣除），每张工资单的预扣按全年化方法计算，次年 3 月按实际税负多退少补。2027 年以后的税率表、401(k)/HSA/Roth IRA 额度沿用 2026 年数值，IRS 公布后在设置里更新。</p>
+    <p>如果 2026 年你不是全年美国税务居民（dual-status），不能使用标准扣除，退税估算会偏高，请找 CPA 确认。这是规划工具，不是财务或税务建议。</p>
+  </footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// autopocket prototype engine: month-by-month cash-flow "waterfall" simulation.
+// Pure functions, no I/O. Single filer, California, 2026 tax tables (approximate).
+// Behavior spec and test vectors: docs/prototype-spec.md
+const ENG = (() => {
+  const FED = { std: 16100, br: [[12400, .10], [50400, .12], [105700, .22], [201775, .24], [256225, .32], [640600, .35], [Infinity, .37]] };
+  const CA = { std: 5706, credit: 153, br: [[11079, .01], [26264, .02], [41452, .04], [57542, .06], [72724, .08], [371479, .093], [445771, .103], [742953, .113], [Infinity, .123]] };
+  const SS_BASE = 184500, SDI = 0.013;
+  const SUPP = { fed: .22, ca: .1023 };
+
+  const bracketTax = (inc, br) => { let t = 0, lo = 0; inc = Math.max(0, inc); for (const [hi, r] of br) { if (inc <= lo) break; t += (Math.min(inc, hi) - lo) * r; lo = hi; } return t; };
+  const fedTax = (w) => bracketTax(w - FED.std, FED.br);
+  const caTax = (w) => Math.max(0, bracketTax(w - CA.std, CA.br) - CA.credit);
+
+  const mk = (y, m) => `${y}-${String(m).padStart(2, '0')}`;
+  const parse = (k) => { const [y, m] = k.split('-').map(Number); return { y, m }; };
+  const addM = (k, n) => { let { y, m } = parse(k); m += n; while (m > 12) { m -= 12; y++; } while (m < 1) { m += 12; y--; } return mk(y, m); };
+  const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
+  function paydays(first, endYear) {
+    const out = []; let d = new Date(first + 'T12:00:00');
+    while (d.getFullYear() <= endYear) { out.push(new Date(d)); d.setDate(d.getDate() + 14); }
+    return out;
+  }
+  const k401For = (s, y) => { const ys = Object.keys(s.k401).map(Number).sort(); let c = s.k401[ys[0]]; for (const yy of ys) if (y >= yy) c = s.k401[yy]; return c; };
+
+  function budgetTotal(b) { return Object.values(b).reduce((a, v) => a + (+v || 0), 0); }
+
+  // ---------- payroll: runs from first paycheck regardless of plan start ----------
+  function payroll(s, endYear) {
+    const days = paydays(s.income.firstPaycheck, endYear);
+    const perYear = {}; days.forEach(d => { perYear[d.getFullYear()] = (perYear[d.getFullYear()] || 0) + 1; });
+    const months = {}; // key -> {checks:[], bonus:null}
+    const ytd = {}; // year -> totals
+    const Y = (y) => (ytd[y] ||= { fedW: 0, caW: 0, fedWH: 0, caWH: 0, ss: 0, k: 0, hsa: 0, match: 0, gross: 0, seen: 0 });
+    const lim = s.limits;
+    const prem = +s.ded.premium || 0; // health premium per paycheck (pre-tax)
+    const matchTiers = s.income.match || []; // [{upTo: % of pay, rate: employer $ per $}], ascending
+    const matchPct = (p) => { let m = 0, lo = 0; for (const t of matchTiers) { m += Math.max(0, Math.min(p, t.upTo) - lo) * t.rate; lo = t.upTo; } return m; };
+    const hsaLimitYear = (y) => {
+      if (!s.ded.hsaEligible) return 0;
+      const st = parse(s.ded.hdhpStart);
+      if (y < st.y) return 0;
+      if (y === st.y) return lim.hsa * (13 - st.m) / 12;
+      return lim.hsa;
+    };
+    const gross = s.income.base / 26;
+    const bonusDates = [];
+    if (s.income.includeVariable && s.income.variable > 0) {
+      let k = s.income.firstVariable;
+      while (parse(k).y <= endYear) { bonusDates.push(k); k = addM(k, 3); }
+    }
+    // merge events in time order: paychecks, bonus at mid-month (15th)
+    const events = days.map(d => ({ t: d, kind: 'pay' }));
+    bonusDates.forEach(k => { const { y, m } = parse(k); events.push({ t: new Date(y, m - 1, 15, 12), kind: 'bonus' }); });
+    events.sort((a, b) => a.t - b.t);
+    for (const ev of events) {
+      const y = ev.t.getFullYear(), key = mk(y, ev.t.getMonth() + 1);
+      const T = Y(y); const cfg = k401For(s, y);
+      const M = (months[key] ||= { checks: [], bonus: null });
+      const matchOn = s.income.matchOn && cmp(key, s.income.matchFrom) >= 0;
+      if (ev.kind === 'pay') {
+        T.seen++;
+        const left = perYear[y] - T.seen + 1;
+        const hsaRoom = Math.max(0, hsaLimitYear(y) - T.hsa);
+        const hsa = (s.ded.hsaEligible && cmp(key, s.ded.hdhpStart) >= 0) ? hsaRoom / left : 0;
+        const k = Math.min(gross * cfg.pct / 100, Math.max(0, lim.k401 - T.k));
+        const trad = cfg.type === 'trad' ? k : 0;
+        const fedWage = gross - prem - hsa - trad;
+        const fedWH = fedTax(fedWage * 26) / 26;
+        const caWage = gross - prem - trad;
+        const caWH = caTax(caWage * 26) / 26;
+        const ficaW = gross - prem - hsa;
+        const ss = Math.max(0, Math.min(ficaW, SS_BASE - T.ss)) * .062; T.ss += Math.min(ficaW, Math.max(0, SS_BASE - T.ss));
+        const med = ficaW * .0145, sdi = ficaW * SDI;
+        const p = gross > 0 ? k / gross * 100 : 0;
+        const match = matchOn ? gross * matchPct(p) / 100 : 0;
+        const net = gross - prem - hsa - k - fedWH - caWH - ss - med - sdi;
+        T.fedW += fedWage; T.caW += caWage; T.fedWH += fedWH; T.caWH += caWH; T.k += k; T.hsa += hsa; T.match += match; T.gross += gross;
+        M.checks.push({ date: ev.t.toISOString().slice(0, 10), gross, prem, hsa, k, kType: cfg.type, fedWH, caWH, fica: ss + med, sdi, net, match });
+      } else {
+        const g = s.income.variable / 4;
+        const k = Math.min(g * cfg.pct / 100, Math.max(0, lim.k401 - T.k));
+        const trad = cfg.type === 'trad' ? k : 0;
+        const fedWH = (g - trad) * SUPP.fed, caWH = (g - trad) * SUPP.ca;
+        const ss = Math.max(0, Math.min(g, SS_BASE - T.ss)) * .062; T.ss += Math.min(g, Math.max(0, SS_BASE - T.ss));
+        const med = g * .0145, sdi = g * SDI;
+        const p = k / g * 100;
+        const match = matchOn ? g * matchPct(p) / 100 : 0;
+        const net = g - k - fedWH - caWH - ss - med - sdi;
+        T.fedW += g - trad; T.caW += g - trad; T.fedWH += fedWH; T.caWH += caWH; T.k += k; T.match += match; T.gross += g;
+        M.bonus = { gross: g, k, kType: cfg.type, fedWH, caWH, fica: ss + med, sdi, net, match };
+      }
+    }
+    // refunds land in March of the following year
+    const refunds = {};
+    for (const [y, T] of Object.entries(ytd)) {
+      const fed = T.fedWH - fedTax(T.fedW), ca = T.caWH - caTax(T.caW);
+      refunds[mk(+y + 1, 3)] = { year: +y, fed, ca, total: fed + ca, fedLiab: fedTax(T.fedW), caLiab: caTax(T.caW) };
+    }
+    return { months, ytd, refunds, prem };
+  }
+
+  // ---------- full plan ----------
+  function simulate(s, start) {
+    const endKey = s.plan.end || '2029-12';
+    const endYear = parse(endKey).y;
+    const P = payroll(s, endYear);
+    const bMoved = budgetTotal(s.exp.moved);
+    const basis = s.plan.basis === 'improved' ? budgetTotal(s.exp.improved) : bMoved;
+    const target1 = s.plan.b1Months * basis, target2 = s.plan.b2Months * basis;
+    const floor1 = Math.min(target1, s.plan.floorMonths * basis);
+    const st = start.balances;
+    const B = {
+      checking: +st.checking || 0,
+      cash: (+st.hysa || 0) + (+st.brokerageCash || 0),
+      rothCash: +st.rothCash || 0, rothInv: +st.rothInv || 0,
+      brokerage: +st.brokerage || 0, k401: +st.k401 || 0, hsa: +st.hsa || 0,
+      loan: +st.loan || 0, foreign: +st.foreign || 0,
+    };
+    let rothPrin = +st.rothPrin || (B.rothCash + B.rothInv);
+    const rothUsed = {}; // tax year -> contributed
+    const sk = parse(start.month);
+    if (st.rothThisYear) rothUsed[sk.y] = +st.rothThisYear;
+    if (st.rothPriorYear) rothUsed[sk.y - 1] = +st.rothPriorYear;
+    let moved = s.move.mode === 'month' ? cmp(start.month, s.move.month) >= 0 : !!st.moved;
+    let investing = false;
+    const rows = []; const ms = { car: null, b1: null, b2: null, move: moved ? start.month : null, invest: null };
+    if (B.loan <= 0) ms.car = 'done';
+    const gM = Math.pow(1 + s.plan.ret / 100, 1 / 12) - 1, cM = s.plan.hysa / 100 / 12, lR = s.debt.rate / 100 / 12;
+    const foreignAdd = s.plan.foreignCounts ? B.foreign : 0;
+
+    for (let key = start.month; cmp(key, endKey) <= 0; key = addM(key, 1)) {
+      const { y, m } = parse(key);
+      const r = { key, moved, flows: {}, notes: [] };
+      // move trigger (fixed month)
+      if (!moved && s.move.mode === 'month' && cmp(key, s.move.month) >= 0) { moved = true; ms.move = key; }
+      r.moved = moved;
+      // income
+      const PM = P.months[key] || { checks: [], bonus: null };
+      const pay = PM.checks.reduce((a, c) => a + c.net, 0);
+      const bonus = PM.bonus ? PM.bonus.net : 0;
+      const refund = P.refunds[key] ? P.refunds[key].total : 0;
+      const k401c = PM.checks.reduce((a, c) => a + c.k + c.match, 0) + (PM.bonus ? PM.bonus.k + PM.bonus.match : 0);
+      const hsac = PM.checks.reduce((a, c) => a + c.hsa, 0);
+      // expenses
+      const bud = moved ? s.exp.moved : (cmp(key, s.exp.improveFrom) >= 0 ? s.exp.improved : s.exp.now);
+      let exp = budgetTotal(bud);
+      if (m === +s.exp.regMonth && cmp(key, s.exp.regPaidThrough) > 0) { exp += +s.exp.reg; r.notes.push(`车辆注册费 $${s.exp.reg}`); }
+      // interest on balances (start-of-month)
+      const cashInt = B.cash * cM + B.rothCash * cM;
+      B.cash += B.cash * cM; B.rothCash += B.rothCash * cM;
+      // loan
+      let loanInt = 0, carMin = 0;
+      if (B.loan > 0) { loanInt = B.loan * lR; B.loan += loanInt; carMin = Math.min(B.loan, s.debt.min); B.loan -= carMin; }
+      // checking flows
+      B.checking += pay + bonus + refund - exp - carMin;
+      const f = { pay, bonus, refund, exp, carMin, carExtra: 0, carFromSavings: 0, toCash: 0, fromCash: 0, rothPrior: 0, rothCur: 0, brokerage: 0, k401: k401c, hsa: hsac, loanInt, cashInt };
+      const buf = s.plan.buffer;
+      // restore buffer from cash if short
+      if (B.checking < buf) { const need = buf - B.checking; const x = Math.min(need, B.cash); B.cash -= x; B.checking += x; f.fromCash += x; }
+      let avail = Math.max(0, B.checking - buf);
+      const take = (x) => { x = Math.max(0, Math.min(x, avail)); avail -= x; B.checking -= x; return x; };
+      // 1. car loan
+      if (B.loan > 0.005 && cmp(key, s.debt.payoffStart) >= 0) {
+        const fromSav = Math.min(B.loan, Math.max(0, B.cash - s.debt.keepCash));
+        B.cash -= fromSav; B.loan -= fromSav; f.carFromSavings = fromSav;
+        const x = take(B.loan); B.loan -= x; f.carExtra = x;
+        if (B.loan < 0.01) { B.loan = 0; if (!ms.car) ms.car = key; }
+      }
+      const loanFree = B.loan <= 0.005;
+      if (loanFree) {
+        // 2. emergency floor
+        if (B.cash + foreignAdd < floor1) { const x = take(floor1 - B.cash - foreignAdd); B.cash += x; f.toCash += x; }
+        // 3. prior-year Roth IRA (Jan - Apr 15)
+        if (m <= 4) {
+          const py = y - 1, room = Math.max(0, s.limits.roth - (rothUsed[py] || 0));
+          if (room > 0 && s.plan.rothPrior && P.ytd[py]) {
+            let x = take(room);
+            if (m === 4 && x < room) { const y2 = Math.min(room - x, Math.max(0, B.cash + foreignAdd - floor1)); B.cash -= y2; f.fromCash += y2; x += y2; }
+            rothUsed[py] = (rothUsed[py] || 0) + x; f.rothPrior = x; rothPrin += x;
+            if (investing) B.rothInv += x; else B.rothCash += x;
+          }
+        }
+        // 4. bucket 1
+        if (B.cash + foreignAdd < target1) { const x = take(target1 - B.cash - foreignAdd); B.cash += x; f.toCash += x; }
+        if (!ms.b1 && B.cash + foreignAdd >= target1 - 1) ms.b1 = key;
+        // 5. bucket 2: current-year Roth IRA (cash) then HYSA
+        const b2 = () => B.cash + foreignAdd + B.rothCash;
+        if (!investing && b2() < target2) {
+          const room = Math.max(0, s.limits.roth - (rothUsed[y] || 0));
+          const x = take(Math.min(room, target2 - b2())); rothUsed[y] = (rothUsed[y] || 0) + x; B.rothCash += x; f.rothCur += x; rothPrin += x;
+          const z = take(target2 - b2()); B.cash += z; f.toCash += z;
+        }
+        if (!ms.b2 && b2() >= target2 - 1) ms.b2 = key;
+        // 6. invest
+        if (ms.b1 && ms.b2 && !investing) { investing = true; ms.invest = key; B.rothInv += B.rothCash; B.rothCash = 0; r.notes.push('Roth IRA 内货币基金转为股票指数基金'); }
+        if (investing) {
+          // refill cash if it fell below target (e.g. after move)
+          // bucket 2 = cash + Roth IRA principal (withdrawable). Keep cash at max(target1, target2 - principal).
+          const cashGoal = Math.max(target1, target2 - rothPrin);
+          if (B.cash + foreignAdd < cashGoal) { const x = take(cashGoal - B.cash - foreignAdd); B.cash += x; f.toCash += x; }
+          const room = Math.max(0, s.limits.roth - (rothUsed[y] || 0));
+          const x = take(room); rothUsed[y] = (rothUsed[y] || 0) + x; B.rothInv += x; f.rothCur += x; rothPrin += x;
+          const z = take(avail); B.brokerage += z; f.brokerage = z;
+        }
+      }
+      // remaining avail stays in checking (only while loan > 0 before payoffStart)
+      // auto-move after both buckets full
+      if (!moved && s.move.mode === 'auto' && ms.b1 && ms.b2) { moved = true; ms.move = addM(key, 1); r.notes.push('两个桶已满，下个月起按搬家后预算'); }
+      // growth on invested
+      B.k401 = B.k401 * (1 + gM) + k401c; B.hsa = B.hsa * (1 + gM) + hsac;
+      B.rothInv *= (1 + gM); B.brokerage *= (1 + gM);
+      r.flows = f;
+      r.bal = { ...B };
+      r.rothUsed = { ...rothUsed }; r.rothPrin = rothPrin;
+      r.stage = B.loan > 0.005 ? 'debt' : !ms.b1 ? 'b1' : !ms.b2 ? 'b2' : 'invest';
+      r.liquid = B.checking + B.cash + B.rothCash + B.rothInv + B.brokerage;
+      r.net = r.liquid + B.k401 + B.hsa + B.foreign - B.loan;
+      r.short = B.checking < -0.5;
+      rows.push(r);
+    }
+    return { rows, ms, target1, target2, floor1, basis, payroll: P, budgets: { now: budgetTotal(s.exp.now), improved: budgetTotal(s.exp.improved), moved: bMoved } };
+  }
+  return { simulate, payroll, budgetTotal, addM, cmp, parse, mk, fedTax, caTax };
+})();
+
+
+
+// ===== example settings (shown only when nothing is saved yet) =====
+const EXAMPLE = {"version": 2, "income": {"base": 96000, "variable": 12000, "includeVariable": true, "firstVariable": "2027-03", "firstPaycheck": "2026-11-06", "matchOn": true, "matchFrom": "2027-07", "match": [{"upTo": 6, "rate": 0.5}]}, "ded": {"premium": 85, "hsaEligible": true, "hdhpStart": "2026-11"}, "k401": {"2026": {"pct": 10, "type": "roth"}, "2027": {"pct": 15, "type": "trad"}}, "limits": {"k401": 24500, "hsa": 4400, "roth": 7500}, "exp": {"now": {"rent": 1500, "util": 100, "carIns": 150, "gas": 120, "carMaint": 40, "subs": 60, "food": 450, "personal": 150, "irregular": 0}, "improved": {"rent": 1500, "util": 100, "carIns": 150, "gas": 120, "carMaint": 40, "subs": 60, "food": 600, "personal": 200, "irregular": 100}, "moved": {"rent": 2000, "util": 150, "carIns": 150, "gas": 120, "carMaint": 40, "subs": 60, "food": 700, "personal": 250, "irregular": 200}, "improveFrom": "2027-01", "reg": 350, "regMonth": 6, "regPaidThrough": "2026-12"}, "move": {"mode": "auto", "month": "2027-09"}, "debt": {"rate": 6.5, "min": 250, "keepCash": 3000, "payoffStart": "2026-11"}, "plan": {"buffer": 1000, "b1Months": 3, "b2Months": 6, "floorMonths": 1, "basis": "moved", "hysa": 4, "ret": 6, "foreignCounts": false, "rothPrior": true, "end": "2029-12"}, "initial": {"date": "2026-10-31", "checking": 1800, "brokerageCash": 7000, "hysa": 0, "roth": 0, "brokerage": 0, "k401": 0, "hsa": 0, "loan": 9000, "foreign": 0}};
+const EXP_ROWS = [['rent','房租'],['util','水电网 + 租客保险'],['carIns','车险'],['gas','油费'],['carMaint','车辆保养'],['subs','订阅（电话/AI/流媒体等）'],['food','吃喝'],['personal','个人 / 娱乐 / 购物'],['irregular','不定期支出储备']];
+
+// ===== state =====
+let S = clone(EXAMPLE), CHECKINS = [], R = null, BASE = null, MONTHS = [], selIdx = 0;
+let source = 'loading', db = null, dbReady = false, saveTimer = null, saving = Promise.resolve(), readOnly = false;
+const ui = { showRet: false, range: '24', pyear: null };
+try { const u = JSON.parse(localStorage.getItem('wf-ui') || '{}'); Object.assign(ui, u); } catch (e) {}
+function saveUi() { try { localStorage.setItem('wf-ui', JSON.stringify(ui)); } catch (e) {} }
+
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+const $ = (s) => document.querySelector(s);
+const money = (n, d = 0) => (n < 0 ? '−$' : '$') + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
+const money0 = (n) => money(Math.round(n));
+const mlab = (k) => { const { y, m } = ENG.parse(k); return `${y}年${m}月`; };
+const mshort = (k) => { const { y, m } = ENG.parse(k); return `${String(y).slice(2)}/${m}`; };
+const todayKey = () => { const d = new Date(); return ENG.mk(d.getFullYear(), d.getMonth() + 1); };
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 1800); }
+function getP(o, p) { return p.split('.').reduce((a, k) => a?.[k], o); }
+function setP(o, p, v) { const ks = p.split('.'); let a = o; ks.slice(0, -1).forEach(k => a = (a[k] ||= {})); a[ks.at(-1)] = v; }
+
+// ===== start state from initial or latest check-in =====
+function startFrom(ci) {
+  const b = ci;
+  const month = ENG.addM(b.date.slice(0, 7), 1);
+  return { month, balances: { checking: +b.checking || 0, brokerageCash: +b.brokerageCash || 0, hysa: +b.hysa || 0, rothCash: +b.roth || 0, rothInv: 0, rothPrin: +b.rothPrin || +b.roth || 0, rothThisYear: +b.rothThisYear || 0, rothPriorYear: +b.rothPriorYear || 0, brokerage: +b.brokerage || 0, k401: +b.k401 || 0, hsa: +b.hsa || 0, loan: +b.loan || 0, foreign: +b.foreign || 0, moved: !!b.moved } };
+}
+function latestCheckin() { return CHECKINS.length ? CHECKINS[CHECKINS.length - 1] : null; }
+
+function recompute() {
+  BASE = ENG.simulate(S, startFrom(S.initial));
+  const lc = latestCheckin();
+  R = lc && lc.date > S.initial.date ? ENG.simulate(S, startFrom(lc)) : BASE;
+  MONTHS = R.rows.map(r => r.key);
+}
+function rowAt(k) { return R.rows.find(r => r.key === k) || BASE.rows.find(r => r.key === k); }
+
+// ===== render =====
+const STAGE = { debt: ['还车贷', '结余全部用来提前还车贷'], b1: ['注满第一个桶', '应急金攒到 3 个月开销'], b2: ['注满第二个桶', '应急金加 Roth IRA 本金到 6 个月开销'], invest: ['长期投资', '两个桶都满，结余进 Roth IRA 和券商账户'] };
+function renderAll(keepSel) {
+  recompute();
+  const tk = todayKey();
+  if (!keepSel) { const i = MONTHS.findIndex(k => k >= tk); selIdx = i < 0 ? 0 : i; }
+  selIdx = Math.max(0, Math.min(selIdx, MONTHS.length - 1));
+  const sl = $('#mslider'); sl.max = MONTHS.length - 1; sl.value = selIdx;
+  renderMilestones(); renderMonth(); renderWhatIf(); renderBalChart(); renderFlowChart(); renderPaycheck(); renderTable(); renderCheckinForm(false); renderCheckins();
+  if (!renderAll.settingsDone) { renderSettings(); renderAll.settingsDone = true; }
+}
+
+function renderMilestones() {
+  const ms = R.ms, tk = todayKey();
+  const cell = (label, key, color, extra) => {
+    let v, d, done = false;
+    if (key === 'done' || (key && key < tk)) { v = '已完成'; d = key && key !== 'done' ? mlab(key) : ''; done = true; }
+    else if (!key) { v = '计划期内未达成'; d = '调整试算参数看看'; }
+    else { const n = (ENG.parse(key).y - ENG.parse(tk).y) * 12 + ENG.parse(key).m - ENG.parse(tk).m; v = mlab(key); d = n <= 0 ? '就在本月' : `还有 ${n} 个月`; }
+    return `<div class="${done ? 'done' : ''}"><div class="k"><b style="background:${color}"></b>${label}</div><div class="v">${v}</div><div class="d">${d}${extra ? ' · ' + extra : ''}</div></div>`;
+  };
+  const moveTxt = S.move.mode === 'never' ? null : R.ms.move;
+  $('#milestones').innerHTML = cell('车贷还清', ms.car, 'var(--s-debt)') + cell('第一个桶满', ms.b1, 'var(--s-cash)', money0(R.target1)) + cell('第二个桶满', ms.b2, 'var(--s-roth)', money0(R.target2)) +
+    (S.move.mode === 'never' ? cell('开始长期投资', ms.invest, 'var(--s-brk)') : cell('可以搬家', moveTxt, 'var(--s-brk)', `月租 ${money0(S.exp.moved.rent)}`));
+}
+
+function flowItems(r) {
+  const f = r.flows, y = ENG.parse(r.key).y, items = [];
+  const PM = R.payroll.months[r.key] || { checks: [] };
+  if (f.carFromSavings > 1) items.push(['var(--s-debt)', `从存款提前还车贷`, f.carFromSavings, `首张工资到账后，从储蓄或券商现金转出；存款保留 ${money0(S.debt.keepCash)}`]);
+  if (f.carMin > 1) items.push(['var(--s-debt)', '车贷月供', f.carMin, `其中利息约 ${money0(f.loanInt)}`]);
+  if (f.carExtra > 1) items.push(['var(--s-debt)', '工资结余多还车贷本金', f.carExtra, '付款时选择只冲本金（principal only）']);
+  if (f.rothPrior > 1) items.push(['var(--s-roth)', `存入 Roth IRA，记为 ${y - 1} 年额度`, f.rothPrior, `4 月 15 日截止。${r.stage === 'invest' ? '买指数基金' : '先买货币基金，当应急金用'}`]);
+  if (f.toCash - f.fromCash > 1) items.push(['var(--s-cash)', '转入高息储蓄（应急金）', f.toCash - f.fromCash, r.stage === 'b1' || !R.ms.b1 || r.key <= R.ms.b1 ? '第一个桶' : '第二个桶的现金部分']);
+  if (f.fromCash - f.toCash > 1) items.push(['var(--s-cash)', '从应急金取出', f.toCash - f.fromCash, '这个月开销大于收入']);
+  if (f.rothCur > 1) items.push(['var(--s-roth)', `存入 Roth IRA（${y} 年额度）`, f.rothCur, r.stage === 'invest' ? '买指数基金' : '先买货币基金，计入第二个桶']);
+  if (f.brokerage > 1) items.push(['var(--s-brk)', '券商账户买指数基金', f.brokerage, '长期持有，5 年内要用的钱不放这里']);
+  r.notes.forEach(n => items.push(['var(--muted)', n, null, '']));
+  return items;
+}
+
+function renderMonth() {
+  const k = MONTHS[selIdx], r = rowAt(k);
+  $('#mlabel').textContent = mlab(k);
+  const st = STAGE[r.stage]; $('#stagepill').textContent = '阶段：' + st[0];
+  $('#todayM').hidden = k === MONTHS[Math.max(0, MONTHS.findIndex(x => x >= todayKey()))];
+  const f = r.flows, PM = R.payroll.months[k] || { checks: [] };
+  const inc = [`工资 ${PM.checks.length} 张 <b>${money0(f.pay)}</b>`];
+  if (f.bonus) inc.push(`variable <b>${money0(f.bonus)}</b>`);
+  if (f.refund) inc.push(`退税 <b>${money0(f.refund)}</b>`);
+  inc.push(`开销 <b>${money0(f.exp)}</b>`);
+  inc.push(`401(k) <b>${money0(f.k401)}</b>`); if (f.hsa) inc.push(`HSA <b>${money0(f.hsa)}</b>`);
+  $('#inout').innerHTML = inc.map(x => `<span>${x}</span>`).join('');
+  const items = flowItems(r);
+  $('#flowlist').innerHTML = items.length ? items.map(([c, t, a, w]) => `<li><span class="sw" style="background:${c}"></span><span>${t}${w ? `<span class="why">${w}</span>` : ''}</span><span class="amt">${a == null ? '' : money0(a)}</span></li>`).join('') : '<li><span></span><span>这个月没有需要转账的操作。</span><span></span></li>';
+  $('#nowhint').textContent = PM.checks.length ? '发薪日 ' + PM.checks.map(c => c.date.slice(5).replace('-', '/')).join('、') : '';
+  if (r.short) $('#flowlist').insertAdjacentHTML('afterbegin', `<li><span class="sw" style="background:var(--crit)"></span><span style="color:var(--crit)">这个月现金不够，支票账户会透支</span><span></span></li>`);
+  renderTanks(r);
+  document.querySelectorAll('#mtable tr').forEach(tr => tr.classList.toggle('sel', tr.dataset.k === k));
+}
+
+function tankSVG(frac, color, over, label) {
+  frac = Math.max(0, Math.min(1, frac)); const H = 120, top = 10 + (H - 4) * (1 - frac);
+  return `<svg viewBox="0 0 100 140" role="img" aria-label="${label}">
+    <rect x="12" y="8" width="76" height="${H}" rx="10" fill="var(--surface-2)" stroke="var(--line-2)" stroke-width="1.5"/>
+    <clipPath id="c${label.length}${Math.round(frac * 1000)}"><rect x="13" y="9" width="74" height="${H - 2}" rx="9"/></clipPath>
+    <g clip-path="url(#c${label.length}${Math.round(frac * 1000)})"><rect x="12" y="${top}" width="76" height="${H}" fill="${color}" opacity=".9"/>
+    <path d="M12 ${top} q 9.5 -4 19 0 t 19 0 t 19 0 t 19 0" fill="none" stroke="var(--surface)" stroke-width="1.5" opacity=".6"/></g>
+    ${[.25, .5, .75].map(t => `<line x1="80" x2="88" y1="${8 + H * (1 - t)}" y2="${8 + H * (1 - t)}" stroke="var(--line-2)"/>`).join('')}
+    ${over ? `<text x="50" y="136" text-anchor="middle" font-size="10" fill="var(--muted)">${over}</text>` : ''}
+  </svg>`;
+}
+function renderTanks(r) {
+  const b = r.bal, foreignAdd = S.plan.foreignCounts ? b.foreign : 0;
+  const loan0 = Math.max(1, +S.initial.loan || 1);
+  const cash = b.cash + foreignAdd;
+  const b1 = Math.min(cash, R.target1);
+  const b2val = Math.max(0, cash - R.target1) + (r.stage === 'invest' ? Math.min(r.rothPrin, b.rothInv) : b.rothCash);
+  const b2span = R.target2 - R.target1;
+  const inv = b.rothInv + b.brokerage;
+  const maxInv = Math.max(1, ...R.rows.map(x => x.bal.rothInv + x.bal.brokerage));
+  const T = (name, frac, color, amt, goal, over) => `<div class="tank">${tankSVG(frac, color, over, name)}<div class="t">${name}</div><div class="a num">${amt}</div><div class="g">${goal}</div></div>`;
+  $('#tanks').innerHTML =
+    T('车贷', b.loan / loan0, 'var(--s-debt)', money0(b.loan), b.loan > 0 ? `剩余 / 原 ${money0(loan0)}` : '已还清') +
+    T('第一个桶', b1 / R.target1, 'var(--s-cash)', money0(b1), `目标 ${money0(R.target1)}`) +
+    T('第二个桶', Math.min(b2val, b2span) / b2span, 'var(--s-roth)', money0(Math.min(b2val, b2span)), `目标 ${money0(b2span)}`) +
+    T('长期投资', inv / maxInv, 'var(--s-brk)', money0(inv), `退休账户另有 ${money0(b.k401 + b.hsa)}`);
+}
+
+function renderWhatIf() {
+  const set = (id, v, txt) => { $(id).value = v; $(id + '-v').textContent = txt; };
+  set('#w-rent', S.exp.moved.rent, money0(S.exp.moved.rent));
+  const k27 = S.k401[2027] || S.k401[Object.keys(S.k401).at(-1)];
+  set('#w-k401', k27.pct, k27.pct + '%');
+  set('#w-food', S.exp.moved.food, money0(S.exp.moved.food));
+  document.querySelectorAll('#w-move button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === S.move.mode));
+  $('#w-var').checked = !!S.income.includeVariable;
+  document.querySelectorAll('#range button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === ui.range));
+  $('#showRet').checked = ui.showRet;
+}
+
+// ===== charts =====
+let balChart, flowChart;
+Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+function viewRows(rows) { return ui.range === 'all' ? rows : rows.slice(0, 26); }
+function baseOpts(onClick) {
+  return {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: { mode: 'index', intersect: false },
+    onClick: (e, els, ch) => { const pts = ch.getElementsAtEventForMode(e, 'index', { intersect: false }, false); if (pts.length) onClick(pts[0].index); },
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: css('--surface'), titleColor: css('--ink'), bodyColor: css('--ink-2'), borderColor: css('--line-2'), borderWidth: 1, padding: 10, boxPadding: 4, usePointStyle: true,
+      callbacks: { label: (c) => ` ${c.dataset.label}: ${money0(c.parsed.y)}` }, filter: (c) => Math.abs(c.parsed.y) > 0.5 } },
+    scales: {
+      x: { grid: { display: false }, border: { color: css('--line-2') }, ticks: { color: css('--muted'), maxRotation: 0, autoSkipPadding: 14 } },
+      y: { grid: { color: css('--line') }, border: { display: false }, ticks: { color: css('--muted'), callback: (v) => v >= 1000 ? '$' + (v / 1000) + 'k' : '$' + v } },
+    },
+  };
+}
+const selLine = { id: 'selLine', afterDatasetsDraw(ch) { const i = ch.options.plugins.selIndex; if (i == null || i < 0) return; const x = ch.scales.x.getPixelForValue(i); const { top, bottom } = ch.chartArea; const c = ch.ctx; c.save(); c.strokeStyle = css('--ink-2'); c.setLineDash([3, 3]); c.lineWidth = 1; c.beginPath(); c.moveTo(x, top); c.lineTo(x, bottom); c.stroke(); c.restore(); } };
+
+function renderBalChart() {
+  const rows = viewRows(R.rows), labels = rows.map(r => mshort(r.key));
+  const ds = []; const area = (label, color, data) => ({ type: 'line', label, data, borderColor: color, backgroundColor: color + 'cc', fill: true, borderWidth: 1.5, pointRadius: 0, stack: 'a', tension: .25 });
+  const c = (v) => css(v);
+  if (ui.showRet) { ds.push(area('401(k)', c('--s-k401'), rows.map(r => r.bal.k401))); ds.push(area('HSA', c('--s-hsa'), rows.map(r => r.bal.hsa))); }
+  ds.push(area('应急现金（高息储蓄 / 券商现金）', c('--s-cash'), rows.map(r => r.bal.cash)));
+  ds.push(area('支票账户', c('--s-chk'), rows.map(r => r.bal.checking)));
+  ds.push(area('Roth IRA', c('--s-roth'), rows.map(r => r.bal.rothCash + r.bal.rothInv)));
+  ds.push(area('券商账户', c('--s-brk'), rows.map(r => r.bal.brokerage)));
+  ds.forEach((d, i) => { d.fill = i === 0 ? 'origin' : '-1'; });
+  ds.push({ type: 'line', label: '车贷余额', data: rows.map(r => r.bal.loan), borderColor: c('--s-debt'), backgroundColor: c('--s-debt'), borderWidth: 2, pointRadius: 0, fill: false, stack: 'debt', tension: .2 });
+  const baseMap = Object.fromEntries(BASE.rows.map(r => [r.key, r]));
+  const showBase = R !== BASE;
+  if (showBase) ds.push({ type: 'line', label: '最初计划（可动用合计）', data: rows.map(r => baseMap[r.key] ? baseMap[r.key].liquid + (ui.showRet ? baseMap[r.key].bal.k401 + baseMap[r.key].bal.hsa : 0) : null), borderColor: c('--ink-2'), borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, fill: false, stack: 'base' });
+  const ciMap = {}; CHECKINS.forEach(ci => { ciMap[ci.date.slice(0, 7)] = ci; });
+  const actual = rows.map(r => { const ci = ciMap[r.key]; if (!ci) return null; return liquidOf(ci) + (ui.showRet ? (+ci.k401 || 0) + (+ci.hsa || 0) : 0); });
+  if (actual.some(v => v != null)) ds.push({ type: 'scatter', label: '实际记录', data: actual, backgroundColor: c('--ink'), borderColor: c('--surface'), borderWidth: 2, pointRadius: 5, stack: 'act' });
+  const opts = baseOpts((i) => { selIdx = i; $('#mslider').value = i; renderMonth(); balChart.options.plugins.selIndex = i; balChart.update('none'); syncFlowSel(); });
+  opts.scales.y.stacked = false; opts.plugins.selIndex = selIdx < rows.length ? selIdx : null;
+  // stacking for areas only
+  opts.scales.y.stacked = true;
+  if (balChart) balChart.destroy();
+  balChart = new Chart($('#balChart'), { data: { labels, datasets: ds }, options: opts, plugins: [selLine] });
+  $('#balLegend').innerHTML = ds.map(d => d.type === 'scatter' ? `<span><i class="dot" style="background:${d.backgroundColor}"></i>${d.label}</span>` : d.borderDash ? `<span><i class="dash"></i>${d.label}</span>` : d.fill === false ? `<span><i class="line" style="background:${d.borderColor}"></i>${d.label}</span>` : `<span><i style="background:${d.borderColor}"></i>${d.label}</span>`).join('');
+}
+function liquidOf(ci) { return ['checking', 'brokerageCash', 'hysa', 'roth', 'brokerage'].reduce((a, k) => a + (+ci[k] || 0), 0); }
+
+function renderFlowChart() {
+  const rows = viewRows(R.rows), labels = rows.map(r => mshort(r.key));
+  const c = (v) => css(v);
+  const bar = (label, color, fn) => ({ label, data: rows.map(fn), backgroundColor: color, borderColor: c('--surface'), borderWidth: { top: 1.5, bottom: 0, left: 0, right: 0 }, borderSkipped: false, stack: 'f', barPercentage: .78, categoryPercentage: .9 });
+  const ds = [
+    bar('开销', c('--s-exp'), r => r.flows.exp),
+    bar('车贷', c('--s-debt'), r => r.flows.carMin + r.flows.carExtra),
+    bar('应急金', c('--s-cash'), r => Math.max(0, r.flows.toCash - r.flows.fromCash)),
+    bar('Roth IRA', c('--s-roth'), r => r.flows.rothPrior + r.flows.rothCur),
+    bar('券商账户', c('--s-brk'), r => r.flows.brokerage),
+  ];
+  const opts = baseOpts((i) => { selIdx = i; $('#mslider').value = i; renderMonth(); syncFlowSel(); balChart.options.plugins.selIndex = i; balChart.update('none'); });
+  opts.scales.x.stacked = true; opts.scales.y.stacked = true; opts.plugins.selIndex = selIdx < rows.length ? selIdx : null;
+  if (flowChart) flowChart.destroy();
+  flowChart = new Chart($('#flowChart'), { type: 'bar', data: { labels, datasets: ds }, options: opts, plugins: [selLine] });
+  $('#flowLegend').innerHTML = ds.map(d => `<span><i style="background:${d.backgroundColor}"></i>${d.label}</span>`).join('');
+}
+function syncFlowSel() { if (flowChart) { flowChart.options.plugins.selIndex = selIdx < flowChart.data.labels.length ? selIdx : null; flowChart.update('none'); } if (balChart) { balChart.options.plugins.selIndex = selIdx < balChart.data.labels.length ? selIdx : null; balChart.update('none'); } }
+
+function renderPaycheck() {
+  const years = [...new Set(Object.keys(R.payroll.months).map(k => +k.slice(0, 4)))].sort();
+  if (!ui.pyear || !years.includes(+ui.pyear)) ui.pyear = years.includes(2027) ? 2027 : years[0];
+  $('#pyear').innerHTML = years.map(y => `<button data-v="${y}" aria-pressed="${+ui.pyear === y}">${y}</button>`).join('');
+  const key = Object.keys(R.payroll.months).sort().find(k => +k.slice(0, 4) === +ui.pyear && R.payroll.months[k].checks.length);
+  const c = R.payroll.months[key].checks[0];
+  const parts = [
+    ['到手', c.net, 'var(--accent)'],
+    [`401(k)（${c.kType === 'roth' ? 'Roth' : 'Traditional'}）`, c.k, 'var(--s-k401)'],
+    ['HSA', c.hsa, 'var(--s-hsa)'],
+    ['联邦所得税预扣', c.fedWH, 'var(--s-debt)'],
+    ['加州所得税 + SDI', c.caWH + c.sdi, 'var(--s-chk)'],
+    ['FICA（社保 + Medicare）', c.fica, 'var(--s-roth)'],
+    ['医疗保费', c.prem, 'var(--s-exp)'],
+  ].filter(p => p[1] > 0.5);
+  $('#pbar').innerHTML = parts.map(p => `<div style="flex:${p[1]};background:${p[2]}" title="${p[0]} ${money0(p[1])}"></div>`).join('');
+  $('#ptable').innerHTML = parts.map(p => `<tr><td><i style="background:${p[2]}"></i>${p[0]}</td><td>${money(p[1])}</td></tr>`).join('') + `<tr class="total"><td>税前（每两周）</td><td>${money(c.gross)}</td></tr>`;
+  const T = R.payroll.ytd[ui.pyear];
+  const taxes = Object.values(R.payroll.months).length && Object.entries(R.payroll.months).filter(([k]) => +k.slice(0, 4) === +ui.pyear).reduce((a, [, M]) => { M.checks.forEach(x => a += x.fedWH + x.caWH + x.fica + x.sdi); if (M.bonus) a += M.bonus.fedWH + M.bonus.caWH + M.bonus.fica + M.bonus.sdi; return a; }, 0);
+  const ref = R.payroll.refunds[ENG.mk(+ui.pyear + 1, 3)];
+  $('#pkv').innerHTML = `<div><div class="l">${ui.pyear} 年税前合计</div><div class="n">${money0(T.gross)}</div></div><div><div class="l">401(k) + HSA${T.match ? ' + 公司配比' : ''}</div><div class="n">${money0(T.k + T.hsa + T.match)}</div></div><div><div class="l">次年 3 月${ref && ref.total < 0 ? '补税' : '退税'}（估）</div><div class="n">${ref ? money0(Math.abs(ref.total)) : '—'}</div></div>`;
+}
+
+function renderTable() {
+  const cols = [['月份', r => mlab(r.key)], ['阶段', r => STAGE[r.stage][0]], ['到手', r => money0(r.flows.pay + r.flows.bonus + r.flows.refund)], ['开销', r => money0(r.flows.exp)], ['车贷', r => money0(r.flows.carMin + r.flows.carExtra + r.flows.carFromSavings)], ['应急金', r => money0(r.flows.toCash - r.flows.fromCash)], ['Roth IRA', r => money0(r.flows.rothPrior + r.flows.rothCur)], ['券商', r => money0(r.flows.brokerage)], ['应急现金余额', r => money0(r.bal.cash)], ['车贷余额', r => money0(r.bal.loan)], ['净资产', r => money0(r.net)]];
+  $('#mtable').innerHTML = `<thead><tr>${cols.map(c => `<th>${c[0]}</th>`).join('')}</tr></thead><tbody>${R.rows.map(r => `<tr data-k="${r.key}" class="${r.key === MONTHS[selIdx] ? 'sel' : ''}">${cols.map((c, i) => `<td${i === 1 ? ' style="font-family:var(--f-body)"' : i === 0 ? ' style="font-family:var(--f-body)"' : ''}>${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody>`;
+}
+
+// ===== check-in =====
+const CI_FIELDS = [['date', '记录日期', 'date', ''], ['checking', '支票账户', 'n', ''], ['brokerageCash', '券商账户现金', 'n', ''], ['hysa', '高息储蓄账户', 'n', ''], ['roth', 'Roth IRA 余额', 'n', ''], ['rothPrin', 'Roth IRA 累计存入本金', 'n', '可随时取出的部分'], ['rothThisYear', '今年额度已存', 'n', 'Roth IRA，本年'], ['rothPriorYear', '去年额度已存', 'n', '1–4 月补存的'], ['brokerage', '券商账户', 'n', ''], ['k401', '401(k)', 'n', ''], ['hsa', 'HSA', 'n', ''], ['loan', '车贷剩余', 'n', ''], ['foreign', '非美元存款（折美元）', 'n', '']];
+function planAtDate(dateStr) {
+  const k = dateStr.slice(0, 7); const r = R.rows.find(x => x.key === k) || R.rows[0]; const b = r.bal, y = +k.slice(0, 4);
+  return { checking: b.checking, brokerageCash: 0, hysa: b.cash, roth: b.rothCash + b.rothInv, rothPrin: r.rothPrin, rothThisYear: r.rothUsed[y] || 0, rothPriorYear: r.rothUsed[y - 1] || 0, brokerage: b.brokerage, k401: b.k401, hsa: b.hsa, loan: b.loan, foreign: b.foreign, moved: r.moved };
+}
+function renderCheckinForm(fill) {
+  const form = $('#ciForm'); if (form.dataset.built && !fill && ciDirty) return; ciDirty = false;
+  const d = new Date(); const iso = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12).toISOString().slice(0, 10);
+  const lc = latestCheckin() || S.initial;
+  const v = fill ? planAtDate(iso) : lc;
+  form.innerHTML = CI_FIELDS.map(([k, l, t, h]) => `<div class="f"><label for="ci-${k}">${l}</label><input id="ci-${k}" name="${k}" ${t === 'date' ? 'type="date"' : 'type="number" inputmode="decimal" step="1"'} value="${t === 'date' ? iso : Math.round(+v[k] || 0)}">${h ? `<span class="h">${h}</span>` : ''}</div>`).join('') + `<div class="f" style="align-content:end"><label class="chk" style="padding-block:8px"><input type="checkbox" id="ci-moved" ${v.moved ? 'checked' : ''}> 已经搬家</label></div>`;
+  form.dataset.built = '1';
+}
+function renderCheckins() {
+  const list = [...CHECKINS].reverse(); const baseMap = Object.fromEntries(BASE.rows.map(r => [r.key, r]));
+  if (!list.length) { $('#ciList').innerHTML = `<div class="ci-row"><span style="grid-column:1/-1;color:var(--muted)">还没有记录。第一张工资单到账后的月底，在上面填一次实际余额。</span></div>`; return; }
+  $('#ciList').innerHTML = list.map(ci => { const a = liquidOf(ci); const b = baseMap[ci.date.slice(0, 7)]; const p = b ? b.liquid : null; const d = p == null ? null : a - p;
+    return `<div class="ci-row"><span class="num" style="text-align:left">${ci.date}</span><span class="num">${money0(a)}</span><span class="num hd-hide">${p == null ? '—' : money0(p)}</span><span class="num hd-hide ${d == null ? '' : d >= 0 ? 'pos' : 'neg'}">${d == null ? '' : (d >= 0 ? '+' : '') + money0(d)}</span><span><button class="btn ghost danger" data-del="${ci.date}" type="button">删除</button></span></div>`; }).join('');
+}
+
+// ===== settings form =====
+function F(path, label, type = 'n', hint = '', opts) {
+  const v = getP(S, path);
+  if (type === 'sel') return `<div class="f"><label for="s-${path}">${label}</label><select id="s-${path}" data-p="${path}" data-t="s">${opts.map(([o, t]) => `<option value="${o}" ${String(v) === String(o) ? 'selected' : ''}>${t}</option>`).join('')}</select>${hint ? `<span class="h">${hint}</span>` : ''}</div>`;
+  if (type === 'b') return `<div class="f"><label>&nbsp;</label><label class="chk"><input type="checkbox" id="s-${path}" data-p="${path}" data-t="b" ${v ? 'checked' : ''}> ${label}</label></div>`;
+  const it = type === 'm' ? 'type="month"' : type === 'd' ? 'type="date"' : 'type="number" step="any" inputmode="decimal"';
+  return `<div class="f"><label for="s-${path}">${label}</label><input id="s-${path}" ${it} data-p="${path}" data-t="${type}" value="${v ?? ''}">${hint ? `<span class="h">${hint}</span>` : ''}</div>`;
+}
+function renderSettings() {
+  const kYears = Object.keys(S.k401).sort();
+  const bt = (b) => ENG.budgetTotal(S.exp[b]);
+  $('#settings').innerHTML = `
+  <div class="sect"><h3>收入</h3><div class="fgrid">
+    ${F('income.base', 'Base 年薪')}${F('income.variable', 'Variable 年额')}${F('income.firstVariable', '第一次 variable 发放', 'm', '之后每 3 个月一次')}${F('income.firstPaycheck', '第一个发薪日', 'd', '之后每两周')}
+    ${F('income.includeVariable', '计入 variable', 'b')}${F('income.matchOn', '计入雇主 401(k) 配比', 'b')}${F('income.matchFrom', '配比开始', 'm', '配比公式在设置文件 income.match')}
+  </div></div>
+  <div class="sect"><h3>工资单扣款</h3><div class="fgrid">
+    ${kYears.map(y => F(`k401.${y}.pct`, `${y}${y === kYears.at(-1) ? ' 起' : ''} 401(k) 比例 %`) + F(`k401.${y}.type`, `${y} 类型`, 'sel', '', [['roth', 'Roth'], ['trad', 'Traditional']])).join('')}
+    ${F('ded.premium', '每张工资单医疗保费')}${F('ded.hsaEligible', '医疗计划可开 HSA（HDHP）', 'b')}${F('ded.hdhpStart', 'HDHP 生效月份', 'm', 'HSA 按此月份折算')}
+  </div></div>
+  <div class="sect"><h3>每月开销</h3>
+    <div class="tscroll"><table class="budget"><thead><tr><th>项目</th><th>现在</th><th>改善后（搬家前）</th><th>搬家后</th></tr></thead><tbody>
+    ${EXP_ROWS.map(([k, l]) => `<tr><td>${l}</td>${['now', 'improved', 'moved'].map(b => `<td><input type="number" step="any" aria-label="${l} ${b}" data-p="exp.${b}.${k}" data-t="n" value="${S.exp[b][k] ?? 0}"></td>`).join('')}</tr>`).join('')}
+    <tr class="sum"><td>合计</td><td id="bt-now">${money0(bt('now'))}</td><td id="bt-improved">${money0(bt('improved'))}</td><td id="bt-moved">${money0(bt('moved'))}</td></tr>
+    </tbody></table></div>
+    <div class="fgrid">${F('exp.improveFrom', '生活改善开始', 'm')}${F('exp.reg', '车辆年度注册费')}${F('exp.regMonth', '注册费在几月交', 'n')}${F('exp.regPaidThrough', '已交到', 'm', '这个月及以前不再扣')}</div>
+  </div>
+  <div class="sect"><h3>车贷</h3><div class="fgrid">
+    ${F('debt.rate', '年利率 %')}${F('debt.min', '月供')}${F('debt.keepCash', '还贷时存款保留', 'n', '超出部分一次性还掉')}${F('debt.payoffStart', '从哪个月开始提前还', 'm', '首张工资到账后')}
+  </div></div>
+  <div class="sect"><h3>桶的规则</h3><div class="fgrid">
+    ${F('plan.b1Months', '第一个桶（月数）')}${F('plan.b2Months', '第二个桶（月数，含第一个）')}${F('plan.floorMonths', '先保底（月数）', 'n', '低于这个先补，再存去年 Roth IRA')}
+    ${F('plan.basis', '桶的大小按', 'sel', '', [['moved', '搬家后开销'], ['improved', '搬家前开销']])}${F('plan.buffer', '支票账户常留')}
+    ${F('move.mode', '搬家', 'sel', '', [['auto', '两个桶满后'], ['month', '指定月份'], ['never', '不搬']])}${F('move.month', '指定搬家月份', 'm')}
+    ${F('plan.foreignCounts', '非美元存款计入应急金', 'b')}${F('plan.rothPrior', '1–4 月补存去年 Roth IRA', 'b')}
+  </div></div>
+  <div class="sect"><h3>利率、回报与额度</h3><div class="fgrid">
+    ${F('plan.hysa', '高息储蓄年利率 %')}${F('plan.ret', '投资预期年化 %', 'n', '仅用于推演')}${F('plan.end', '推演到', 'm')}
+    ${F('limits.k401', '401(k) 年额度')}${F('limits.hsa', 'HSA 年额度（单人）')}${F('limits.roth', 'Roth IRA 年额度')}
+  </div></div>
+  <div class="sect"><h3>起点余额（${S.initial.date}）</h3><div class="fgrid">
+    ${F('initial.date', '日期', 'd')}${F('initial.checking', '支票账户')}${F('initial.brokerageCash', '券商账户现金')}${F('initial.hysa', '高息储蓄')}${F('initial.roth', 'Roth IRA')}${F('initial.brokerage', '券商')}${F('initial.loan', '车贷')}${F('initial.foreign', '非美元存款（折美元）')}
+  </div><p class="hint" style="margin:0">有了月底打卡记录后，计划从最近一次记录开始推算；起点余额只用来画"最初计划"那条虚线。</p></div>`;
+}
+function onSettingInput(e) {
+  const el = e.target; const p = el.dataset.p; if (!p) return;
+  const t = el.dataset.t; let v = t === 'b' ? el.checked : t === 'n' ? (el.value === '' ? 0 : +el.value) : el.value;
+  if (t === 'n' && !isFinite(v)) return;
+  if ((t === 'm' || t === 'd') && !v) return;
+  setP(S, p, v);
+  if (p.startsWith('exp.')) ['now', 'improved', 'moved'].forEach(b => { const c = $('#bt-' + b); if (c) c.textContent = money0(ENG.budgetTotal(S.exp[b])); });
+  renderAll(true); scheduleSave();
+}
+
+// ===== persistence =====
+function setSync(cls, txt) { const el = $('#sync'); el.className = 'sync ' + cls; el.lastElementChild.textContent = txt; }
+function scheduleSave() {
+  if (readOnly) return;
+  clearTimeout(saveTimer); setSync('', '保存中…');
+  saveTimer = setTimeout(() => { saving = saving.then(doSave); }, 700);
+}
+async function doSave() {
+  const body = { settings: clone(S), updatedAt: new Date().toISOString() };
+  if (db) {
+    try { await db.doc('plan/settings').set(body); setSync('ok', '已保存'); source = 'db'; $('#banner').hidden = true; }
+    catch (e) { if (e && e.code === 'invalid_argument') { readOnly = true; setSync('warn', '只读'); } else setSync('warn', '保存失败，稍后会重试'); }
+  } else { try { localStorage.setItem('wf-settings', JSON.stringify(body)); setSync('warn', '只保存在本浏览器'); } catch (e) { setSync('warn', '未保存'); } }
+}
+async function saveCheckin() {
+  const form = $('#ciForm'); const ci = {};
+  CI_FIELDS.forEach(([k, , t]) => { const v = form.querySelector('#ci-' + k).value; ci[k] = t === 'date' ? v : +v || 0; });
+  ci.moved = $('#ci-moved').checked;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ci.date)) { $('#ciMsg').textContent = '请选择记录日期'; return; }
+  ci.savedAt = new Date().toISOString();
+  const i = CHECKINS.findIndex(x => x.date === ci.date); if (i >= 0) CHECKINS[i] = ci; else CHECKINS.push(ci);
+  CHECKINS.sort((a, b) => a.date < b.date ? -1 : 1);
+  if (db) { try { await db.collection('checkins').doc(ci.date).set(ci); toast('已保存 ' + ci.date + ' 的记录'); } catch (e) { toast('保存失败：' + (e.message || e.code)); } }
+  else { try { localStorage.setItem('wf-checkins', JSON.stringify(CHECKINS)); toast('已保存到本浏览器'); } catch (e) {} }
+  $('#ciMsg').textContent = '计划已从这次记录重新推算。'; ciDirty = true; ciDirty = true;
+  renderAll(false);
+}
+let pendingDel = null, ciDirty = false;
+$('#ciForm').addEventListener('input', () => { ciDirty = true; });
+async function delCheckin(date, btn) {
+  if (pendingDel !== date) { pendingDel = date; btn.textContent = '确认删除？'; setTimeout(() => { if (pendingDel === date) { pendingDel = null; btn.textContent = '删除'; } }, 3000); return; }
+  pendingDel = null;
+  CHECKINS = CHECKINS.filter(c => c.date !== date);
+  if (db) { try { await db.collection('checkins').doc(date).delete(); } catch (e) { toast('删除失败'); } } else { try { localStorage.setItem('wf-checkins', JSON.stringify(CHECKINS)); } catch (e) {} }
+  toast('已删除'); renderAll(true);
+}
+
+async function boot() {
+  renderAll(false);
+  let cl = null;
+  try { cl = window.claude ? await window.claude.use('db') : null; } catch (e) { cl = null; }
+  db = cl;
+  if (!db) {
+    try { const s = JSON.parse(localStorage.getItem('wf-settings') || 'null'); if (s && s.settings) { S = s.settings; source = 'local'; } const c = JSON.parse(localStorage.getItem('wf-checkins') || '[]'); CHECKINS = c; } catch (e) {}
+    setSync('warn', source === 'local' ? '只保存在本浏览器' : '示例数据');
+    $('#banner').hidden = false; $('#banner').textContent = source === 'local' ? '现在无法连接云端存储，改动只保存在这个浏览器里。' : '现在无法连接云端存储，下面是示例数字，不是你的数据。';
+    renderAll.settingsDone = false; renderAll(false); return;
+  }
+  try { const u = await window.claude.use('user'); if (u && u.can && (await u.can('data.write')) === false) { readOnly = true; } } catch (e) {}
+  let first = true;
+  db.doc('plan/settings').onSnapshot((snap) => {
+    if (snap.metadata && snap.metadata.hasPendingWrites) return;
+    if (snap.exists && snap.data().settings) { S = mergeDefaults(clone(snap.data().settings)); source = 'db'; setSync('ok', readOnly ? '只读' : '已同步'); $('#banner').hidden = true; }
+    else if (first) { source = 'example'; setSync('warn', '示例数据'); $('#banner').hidden = false; $('#banner').textContent = '云端还没有保存的计划，下面是示例数字。改动任意设置后会保存为你的计划。'; }
+    first = false; renderAll.settingsDone = false; renderAll(true);
+  }, () => setSync('warn', '同步中断，刷新页面重试'));
+  db.collection('checkins').onSnapshot((qs) => {
+    CHECKINS = qs.docs.map(d => d.data()).filter(d => d && d.date).sort((a, b) => a.date < b.date ? -1 : 1);
+    renderAll(true);
+  }, () => {});
+}
+function mergeDefaults(s) { const d = clone(EXAMPLE); const deep = (a, b) => { for (const k in b) { if (a[k] == null) a[k] = b[k]; else if (typeof b[k] === 'object' && !Array.isArray(b[k]) && k !== 'k401') deep(a[k], b[k]); } return a; }; return deep(s, d); }
+
+// ===== events =====
+$('#mslider').addEventListener('input', (e) => { selIdx = +e.target.value; renderMonth(); syncFlowSel(); });
+$('#prevM').onclick = () => { selIdx = Math.max(0, selIdx - 1); $('#mslider').value = selIdx; renderMonth(); syncFlowSel(); };
+$('#nextM').onclick = () => { selIdx = Math.min(MONTHS.length - 1, selIdx + 1); $('#mslider').value = selIdx; renderMonth(); syncFlowSel(); };
+$('#todayM').onclick = () => { const i = MONTHS.findIndex(k => k >= todayKey()); selIdx = i < 0 ? 0 : i; $('#mslider').value = selIdx; renderMonth(); syncFlowSel(); };
+const wi = (id, fn) => $(id).addEventListener('input', (e) => { fn(+e.target.value); renderAll(true); scheduleSave(); });
+wi('#w-rent', v => S.exp.moved.rent = v);
+wi('#w-food', v => S.exp.moved.food = v);
+wi('#w-k401', v => { const ys = Object.keys(S.k401).sort(); ys.filter(y => +y >= 2027).forEach(y => S.k401[y].pct = v); });
+$('#w-move').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; S.move.mode = b.dataset.v; renderAll(true); scheduleSave(); renderAll.settingsDone = false; renderSettings(); renderAll.settingsDone = true; });
+$('#w-var').addEventListener('change', (e) => { S.income.includeVariable = e.target.checked; renderAll(true); scheduleSave(); });
+$('#range').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; ui.range = b.dataset.v; saveUi(); renderWhatIf(); renderBalChart(); renderFlowChart(); });
+$('#showRet').addEventListener('change', (e) => { ui.showRet = e.target.checked; saveUi(); renderBalChart(); });
+$('#pyear').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; ui.pyear = +b.dataset.v; saveUi(); renderPaycheck(); });
+$('#settings').addEventListener('change', onSettingInput);
+$('#settings').addEventListener('input', (e) => { if (e.target.type === 'number') onSettingInput(e); });
+$('#ciSave').onclick = saveCheckin;
+$('#importSettings').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { try { const j = JSON.parse(rd.result); S = mergeDefaults(j.settings || j); renderAll.settingsDone = false; renderAll(false); scheduleSave(); toast('已导入设置'); } catch (err) { toast('文件不是有效的设置 JSON'); } }; rd.readAsText(f); e.target.value = ''; });
+$('#copySettings').addEventListener('click', async () => { const txt = JSON.stringify(S, null, 2); try { await navigator.clipboard.writeText(txt); toast('已复制设置 JSON'); } catch (err) { toast('浏览器不允许复制'); } });
+$('#ciFill').onclick = () => { $('#ciForm').dataset.built = ''; renderCheckinForm(true); $('#ciMsg').textContent = '已按今天对应月份的计划值预填，改成实际数字再保存。'; };
+$('#ciList').addEventListener('click', (e) => { const b = e.target.closest('[data-del]'); if (b) delCheckin(b.dataset.del, b); });
+$('#mtable').addEventListener('click', (e) => { const tr = e.target.closest('tr[data-k]'); if (!tr) return; selIdx = MONTHS.indexOf(tr.dataset.k); $('#mslider').value = selIdx; renderMonth(); syncFlowSel(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+const reTheme = () => { renderBalChart(); renderFlowChart(); };
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', reTheme); } catch (e) {}
+new MutationObserver(reTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+boot();
+</script>
+
+</body>
+</html>

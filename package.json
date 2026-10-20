@@ -1,0 +1,13 @@
+{
+  "name": "autopocket",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Personal finance autopilot: synced balances, cash-flow waterfall planning, actionable nudges.",
+  "license": "UNLICENSED",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
