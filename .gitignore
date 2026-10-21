@@ -1,6 +1,8 @@
 # Personal data never leaves the machine
 config/settings.json
 config/*.local.json
+private/
+CLAUDE.local.md
 data/
 *.sqlite
 *.db
